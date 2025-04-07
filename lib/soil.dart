@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:agrosensor/sensor.dart';
-
+import 'dart:math';
 class SimpleSoilAnalysisScreen extends StatefulWidget {
   const SimpleSoilAnalysisScreen({Key? key}) : super(key: key);
 
@@ -42,19 +42,21 @@ class _SimpleSoilAnalysisScreenState extends State<SimpleSoilAnalysisScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSoilHealthCard(sensor),
-            SizedBox(height: 24),
-            _buildParamSection(sensor),
-            SizedBox(height: 24),
-            _buildSoilStatusCard(sensor),
-            SizedBox(height: 24),
-            _buildRecommendationCard(sensor),
-          ],
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSoilHealthCard(sensor),
+              SizedBox(height: 24),
+              _buildParamSection(sensor),
+              SizedBox(height: 24),
+              _buildSoilStatusCard(sensor),
+              SizedBox(height: 24),
+              _buildRecommendationCard(sensor),
+            ],
+          ),
         ),
       ),
     );
@@ -126,12 +128,18 @@ class _SimpleSoilAnalysisScreenState extends State<SimpleSoilAnalysisScreen> {
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
-                    Container(
-                      height: 8,
-                      width: MediaQuery.of(context).size.width * 0.8 * (soilHealthScore / 100),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(4),
+                    // Use ClipRect and align the container instead of setting width directly
+                    ClipRect(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: soilHealthScore / 100,
+                        child: Container(
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -253,30 +261,35 @@ class _SimpleSoilAnalysisScreenState extends State<SimpleSoilAnalysisScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: (param['color'] as Color).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: (param['color'] as Color).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                param['icon'] as IconData,
+                                color: param['color'] as Color,
+                                size: 18,
+                              ),
                             ),
-                            child: Icon(
-                              param['icon'] as IconData,
-                              color: param['color'] as Color,
-                              size: 18,
+                            SizedBox(width: 12),
+                            Flexible(
+                              child: Text(
+                                param['name'] as String,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF2E3A59),
+                                ),
+                              ),
                             ),
-                          ),
-                          SizedBox(width: 12),
-                          Text(
-                            param['name'] as String,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF2E3A59),
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                       Container(
                         padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -296,38 +309,50 @@ class _SimpleSoilAnalysisScreenState extends State<SimpleSoilAnalysisScreen> {
                     ],
                   ),
                   SizedBox(height: 16),
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
-                      Text(
-                        'Current: ',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFF8F9BB3),
-                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Current: ',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF8F9BB3),
+                            ),
+                          ),
+                          Text(
+                            '${(param['value'] is int ? (param['value'] as int).toDouble() : param['value'] as double).toStringAsFixed(1)} ${param['unit']}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF2E3A59),
+                            ),
+                          ),
+                        ],
                       ),
-                      Text(
-                         '${(param['value'] is int ? (param['value'] as int).toDouble() : param['value'] as double).toStringAsFixed(1)} ${param['unit']}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF2E3A59),
-                        ),
-                      ),
-                      SizedBox(width: 16),
-                      Text(
-                        'Optimal: ',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFF8F9BB3),
-                        ),
-                      ),
-                      Text(
-                        '${param['min']}-${param['max']} ${param['unit']}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF2E3A59),
-                        ),
+                      SizedBox(width: 8),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Optimal: ',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF8F9BB3),
+                            ),
+                          ),
+                          Text(
+                            '${param['min']}-${param['max']} ${param['unit']}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF2E3A59),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -382,6 +407,7 @@ class _SimpleSoilAnalysisScreenState extends State<SimpleSoilAnalysisScreen> {
           ),
           SizedBox(height: 16),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 padding: EdgeInsets.all(12),
@@ -396,29 +422,28 @@ class _SimpleSoilAnalysisScreenState extends State<SimpleSoilAnalysisScreen> {
                 ),
               ),
               SizedBox(width: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    soilStatus,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: statusColor,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      soilStatus,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: statusColor,
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 4),
-                  SizedBox(
-                    width: MediaQuery.of(context).size.width * 0.6,
-                    child: Text(
+                    SizedBox(height: 4),
+                    Text(
                       statusDescription,
                       style: TextStyle(
                         fontSize: 14,
                         color: Color(0xFF8F9BB3),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -529,10 +554,10 @@ class _SimpleSoilAnalysisScreenState extends State<SimpleSoilAnalysisScreen> {
                                               (sensor.salinity as int).toDouble() : 
                                               sensor.salinity as double, 0.0, 2.0);
     double ecScore = _calculateParameterScore(
-  sensor.ec is int ? (sensor.ec as int).toDouble() : (sensor.ec as double),
-  0.5, 
-  1.5
-);
+      sensor.ec is int ? (sensor.ec as int).toDouble() : (sensor.ec as double),
+      0.5, 
+      1.5
+    );
     
     // Weighted average (can adjust weights based on importance)
     return (tempScore * 0.15 + moistureScore * 0.3 + phScore * 0.25 + 
@@ -546,12 +571,12 @@ class _SimpleSoilAnalysisScreenState extends State<SimpleSoilAnalysisScreen> {
       // Calculate percentage below min (decreasing as it gets further from min)
       double deficit = min - value;
       double percentBelow = (deficit / min) * 100;
-      return 100 - percentBelow;
+      return (100 - percentBelow) < 0 ? 0 : (100 - percentBelow); // Ensure score doesn't go below 0
     } else { // value > max
       // Calculate percentage above max (decreasing as it gets further from max)
       double excess = value - max;
       double percentAbove = (excess / max) * 100;
-      return 100 - percentAbove;
+      return percentAbove > 100 ? 0 : 100 - percentAbove; // Ensure score doesn't go below 0
     }
   }
   

@@ -173,12 +173,12 @@ class _QuickDetectionScreenState extends State<QuickDetectionScreen> {
                         color: Color(0xFF4CAF50),
                         onTap: isAnalyzing ? null : _takePhoto,
                       ),
-                      _buildActionButton(
-                        title: 'From Gallery',
-                        icon: Icons.photo_library_outlined,
-                        color: Color(0xFF2196F3),
-                        onTap: isAnalyzing ? null : _pickFromGallery,
-                      ),
+                      // _buildActionButton(
+                      //   title: 'From Gallery',
+                      //   icon: Icons.photo_library_outlined,
+                      //   color: Color(0xFF2196F3),
+                      //   onTap: isAnalyzing ? null : _pickFromGallery,
+                      // ),
                     ],
                   ),
                 ],
