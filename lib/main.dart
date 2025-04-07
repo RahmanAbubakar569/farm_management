@@ -737,10 +737,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
 
         else if (index == 1) {
-          // Navigator.push(
-          //   context,
-          //   MaterialPageRoute(builder: (context) => DiseaseDetectionScreen()),
-          // );
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => DiseaseDetectionScreen()),
+          );
         }
         else if (index == 2){
           Navigator.push(context,
