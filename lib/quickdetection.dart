@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
 
 class QuickDetectionScreen extends StatefulWidget {
   const QuickDetectionScreen({Key? key}) : super(key: key);
@@ -13,32 +15,25 @@ class _QuickDetectionScreenState extends State<QuickDetectionScreen> {
   final ImagePicker _picker = ImagePicker();
   List<Map<String, dynamic>> detectedImages = [];
   bool isAnalyzing = false;
+  
+  // Update this with your Raspberry Pi's IP address and port
+  final String serverUrl = 'http://10.42.0.1:8080';
 
   Future<void> _takePhoto() async {
     setState(() {
       isAnalyzing = true;
     });
 
-    final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
+    final XFile? photo = await _picker.pickImage(
+      source: ImageSource.camera,
+      // Better quality settings for plant disease analysis
+      maxWidth: 1200,
+      maxHeight: 1200,
+      imageQuality: 95,
+    );
     
     if (photo != null) {
-      // Simulate disease detection with a delay
-      await Future.delayed(Duration(seconds: 2));
-      
-      // In a real app, you would send the image to your ML model here
-      // For now, we'll use mock results
-      Map<String, dynamic> result = _mockDetectionResult();
-      
-      setState(() {
-        detectedImages.add({
-          'image': photo.path,
-          'disease': result['disease'],
-          'confidence': result['confidence'],
-          'color': result['color'],
-          'treatment': result['treatment'],
-        });
-        isAnalyzing = false;
-      });
+      _processImage(photo);
     } else {
       setState(() {
         isAnalyzing = false;
@@ -51,25 +46,15 @@ class _QuickDetectionScreenState extends State<QuickDetectionScreen> {
       isAnalyzing = true;
     });
 
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    final XFile? image = await _picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1200,
+      maxHeight: 1200,
+      imageQuality: 95,
+    );
     
     if (image != null) {
-      // Simulate disease detection with a delay
-      await Future.delayed(Duration(seconds: 2));
-      
-      // In a real app, you would send the image to your ML model here
-      Map<String, dynamic> result = _mockDetectionResult();
-      
-      setState(() {
-        detectedImages.add({
-          'image': image.path,
-          'disease': result['disease'],
-          'confidence': result['confidence'],
-          'color': result['color'],
-          'treatment': result['treatment'],
-        });
-        isAnalyzing = false;
-      });
+      _processImage(image);
     } else {
       setState(() {
         isAnalyzing = false;
@@ -77,36 +62,98 @@ class _QuickDetectionScreenState extends State<QuickDetectionScreen> {
     }
   }
 
-  // Mock function to generate random detection results
-  Map<String, dynamic> _mockDetectionResult() {
-    final diseases = [
-      {
-        'disease': 'Early Blight',
-        'confidence': '96.2%',
-        'color': Color(0xFFEF5350),
-        'treatment': 'Apply copper-based fungicide and improve air circulation.'
+  Future<void> _processImage(XFile imageFile) async {
+    try {
+      // Create multipart request
+      var request = http.MultipartRequest('POST', Uri.parse('$serverUrl/predict'));
+      
+      // Add file to request
+      request.files.add(await http.MultipartFile.fromPath(
+        'image',
+        imageFile.path,
+      ));
+
+      // Send request
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        Map<String, dynamic> predictionResult = json.decode(response.body);
+        
+        // Get disease class from prediction result
+        String diseaseClass = predictionResult['predicted_class'];
+        
+        // Get treatment and color based on detected class
+        Map<String, dynamic> displayData = _getDisplayDataForClass(diseaseClass);
+        
+        setState(() {
+          detectedImages.add({
+            'image': imageFile.path,
+            'disease': diseaseClass,
+            'color': displayData['color'],
+            'treatment': displayData['treatment'],
+          });
+          isAnalyzing = false;
+        });
+      } else {
+        // Handle error
+        setState(() {
+          isAnalyzing = false;
+        });
+        _showErrorDialog('Server error: ${response.statusCode}');
+      }
+    } catch (e) {
+      setState(() {
+        isAnalyzing = false;
+      });
+      _showErrorDialog('Connection error: $e');
+    }
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Error'),
+          content: Text(message),
+          actions: [
+            TextButton(
+              child: Text('OK'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
       },
-      {
-        'disease': 'Bacterial Spot',
-        'confidence': '89.5%',
-        'color': Color(0xFFFFB74D),
-        'treatment': 'Use copper fungicides and avoid overhead irrigation.'
-      },
-      {
-        'disease': 'Powdery Mildew',
-        'confidence': '94.1%',
-        'color': Color(0xFF9575CD),
-        'treatment': 'Apply sulfur-based fungicide and increase spacing between plants.'
-      },
-      {
-        'disease': 'Healthy',
-        'confidence': '98.3%',
-        'color': Color(0xFF66BB6A),
-        'treatment': 'No treatment needed. Continue regular care.'
-      },
-    ];
-    
-    return diseases[DateTime.now().millisecond % diseases.length];
+    );
+  }
+
+  // Get display data based on disease class
+  Map<String, dynamic> _getDisplayDataForClass(String diseaseClass) {
+    switch (diseaseClass) {
+      case 'Bacterial':
+        return {
+          'color': Color(0xFFEF5350),
+          'treatment': 'Apply copper-based bactericides. Remove and destroy infected plant parts. Avoid overhead irrigation. Keep the area around plants clean and free of debris. Use disease-free seeds and transplants.'
+        };
+      case 'Fungal':
+        return {
+          'color': Color(0xFFFFB74D),
+          'treatment': 'Apply appropriate fungicide. Improve air circulation by properly spacing plants. Remove infected plant material immediately. Water at the base of plants to keep foliage dry. Rotate crops annually to prevent buildup of fungi in soil.'
+        };
+      case 'Healthy':
+        return {
+          'color': Color(0xFF66BB6A),
+          'treatment': 'No treatment needed. Continue regular care and monitoring. Maintain consistent watering schedule. Apply balanced fertilizer according to plant needs. Keep observing for early signs of issues.'
+        };
+      default:
+        return {
+          'color': Color(0xFF9575CD),
+          'treatment': 'Consult with a plant specialist for proper diagnosis and treatment. Take multiple photos from different angles for better assessment.'
+        };
+    }
   }
 
   @override
@@ -117,7 +164,7 @@ class _QuickDetectionScreenState extends State<QuickDetectionScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         title: Text(
-          'Quick Disease Detection',
+          'Plant Disease Detection',
           style: TextStyle(
             color: Color(0xFF2E3A59),
             fontWeight: FontWeight.w600,
@@ -157,7 +204,7 @@ class _QuickDetectionScreenState extends State<QuickDetectionScreen> {
                   ),
                   SizedBox(height: 8),
                   Text(
-                    'Make sure the leaf is well-lit and centered in the frame',
+                    'Ensure good lighting and focus on the affected area',
                     style: TextStyle(
                       fontSize: 14,
                       color: Color(0xFF8F9BB3),
@@ -173,12 +220,12 @@ class _QuickDetectionScreenState extends State<QuickDetectionScreen> {
                         color: Color(0xFF4CAF50),
                         onTap: isAnalyzing ? null : _takePhoto,
                       ),
-                      // _buildActionButton(
-                      //   title: 'From Gallery',
-                      //   icon: Icons.photo_library_outlined,
-                      //   color: Color(0xFF2196F3),
-                      //   onTap: isAnalyzing ? null : _pickFromGallery,
-                      // ),
+                      _buildActionButton(
+                        title: 'From Gallery',
+                        icon: Icons.photo_library_outlined,
+                        color: Color(0xFF2196F3),
+                        onTap: isAnalyzing ? null : _pickFromGallery,
+                      ),
                     ],
                   ),
                 ],
@@ -311,7 +358,7 @@ class _QuickDetectionScreenState extends State<QuickDetectionScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Image with overlay for disease status
+              // Image with disease status
               Stack(
                 children: [
                   ClipRRect(
@@ -344,7 +391,7 @@ class _QuickDetectionScreenState extends State<QuickDetectionScreen> {
                           ),
                           SizedBox(width: 4),
                           Text(
-                            detection['confidence'],
+                            detection['disease'],
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w600,
@@ -392,6 +439,7 @@ class _QuickDetectionScreenState extends State<QuickDetectionScreen> {
                       ],
                     ),
                     SizedBox(height: 12),
+                    
                     Text(
                       'Recommended Treatment:',
                       style: TextStyle(
@@ -414,7 +462,7 @@ class _QuickDetectionScreenState extends State<QuickDetectionScreen> {
                         Expanded(
                           child: ElevatedButton(
                             onPressed: () {
-                              // View detailed report
+                              // View detailed report functionality
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Color(0xFF4CAF50),

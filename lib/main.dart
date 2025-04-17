@@ -202,7 +202,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
-                    Icons.eco_outlined,
+                    Icons.spa_outlined,
                     color: Color(0xFF4CAF50),
                     size: 20,
                   ),
@@ -620,7 +620,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildQuickActions() {
     final List<Map<String, dynamic>> actions = [
       {'title': 'Scan Lettuce', 'icon': Icons.camera_alt_outlined, 'color': Color.fromARGB(255, 25, 165, 230)},
-      {'title': 'CropAI', 'icon': Icons.chat, 'color': Color.fromARGB(255, 17, 165, 4)},
+      {'title': 'LettuceAI', 'icon': Icons.chat, 'color': Color.fromARGB(255, 17, 165, 4)},
     ];
 
     return Container(
@@ -695,7 +695,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         height: 70,
         padding: EdgeInsets.symmetric(horizontal: 20),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: const Color.fromARGB(255, 17, 165, 4),
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
@@ -711,7 +711,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _buildNavItem(0, Icons.dashboard_outlined, 'Dashboard'),
             _buildNavItem(1, Icons.bug_report, 'Disease Detection'),
             _buildNavItem(2, Icons.eco_outlined, 'Soil Parameters'),
-            _buildNavItem(3, Icons.chat_outlined, 'CropAI'),
+            _buildNavItem(3, Icons.chat_outlined, 'LettuceAI'),
           ],
         ),
       ),
@@ -759,15 +759,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           Icon(
             icon,
-            size: 24,
-            color: isSelected ? Color.fromARGB(255, 3, 110, 9) :  Color.fromARGB(255, 3, 110, 9),
+            size: 24, //24
+            color: isSelected ? Color.fromARGB(255, 255, 255, 255) :  Color.fromARGB(255, 255, 255, 255),
           ),
           SizedBox(height: 4),
           Text(
             label,
             style: TextStyle(
-              fontSize: 10,
-              color: isSelected ?  Color.fromARGB(255, 3, 110, 9) : Color.fromARGB(255, 3, 110, 9),
+              fontSize: 10, //10
+              color: isSelected ?  Color.fromARGB(255, 255, 255, 255) : Color.fromARGB(255, 255, 255, 255),
               //fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
             ),
           ),

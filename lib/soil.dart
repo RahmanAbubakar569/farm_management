@@ -547,16 +547,16 @@ class _SimpleSoilAnalysisScreenState extends State<SimpleSoilAnalysisScreen> {
   
   double _calculateSoilHealth(SensorProvider sensor) {
     // Calculate soil health score based on parameter proximity to optimal ranges
-    double tempScore = _calculateParameterScore(sensor.temperature, 18.0, 25.0);
-    double moistureScore = _calculateParameterScore(sensor.moisture, 60.0, 80.0);
-    double phScore = _calculateParameterScore(sensor.ph, 5.5, 6.5);
+    double tempScore = _calculateParameterScore(sensor.temperature, 15.0, 20.0);
+    double moistureScore = _calculateParameterScore(sensor.moisture, 70.0, 80.0);
+    double phScore = _calculateParameterScore(sensor.ph, 6.0, 6.5);
     double salinityScore = _calculateParameterScore(sensor.salinity is int ? 
                                               (sensor.salinity as int).toDouble() : 
-                                              sensor.salinity as double, 0.0, 2.0);
+                                              sensor.salinity as double, 500.0, 950.0);
     double ecScore = _calculateParameterScore(
       sensor.ec is int ? (sensor.ec as int).toDouble() : (sensor.ec as double),
-      0.5, 
-      1.5
+      800.0, 
+      1500.0
     );
     
     // Weighted average (can adjust weights based on importance)
