@@ -16,7 +16,7 @@ class _QuickDetectionScreenState extends State<QuickDetectionScreen> {
   List<Map<String, dynamic>> detectedImages = [];
   bool isAnalyzing = false;
   
-  // Update this with your Raspberry Pi's IP address and port
+  // Raspberry Pi's IP address and port
   final String serverUrl = 'http://10.42.0.1:8080';
 
   Future<void> _takePhoto() async {

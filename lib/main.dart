@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart';
 import 'package:agrosensor/diseasedetection.dart';
 import 'package:agrosensor/soil.dart';
 import 'package:agrosensor/cropai.dart';
+import 'package:agrosensor/quickdetection.dart';
 import 'package:agrosensor/sensor.dart';
 import 'package:provider/provider.dart';
-
+import 'package:flutter_tts/flutter_tts.dart'; 
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,43 +62,98 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedIndex = 0;
   String currentDate = DateFormat('E, d MMM').format(DateTime.now());
+  FlutterTts flutterTts = FlutterTts(); // Initialize TTS engine
+  bool isSpeaking = false; // Track speaking state
 
   // Sample data for dashboard
   Map<String, dynamic> getSoilParameters(SensorProvider sensor) {
-  return {
-    'Temperature': {
-      'value': sensor.temperature.toStringAsFixed(1),
-      'unit': '°C',
-      'icon': Icons.thermostat_outlined,
-      'color': Color(0xFFFF8A65),
-    },
-    'Moisture': {
-      'value': sensor.moisture.toStringAsFixed(1),
-      'unit': '%',
-      'icon': Icons.water_drop_outlined,
-      'color': Color(0xFF4FC3F7),
-    },
-    'pH': {
-      'value': sensor.ph.toStringAsFixed(1),
-      'unit': 'pH',
-      'icon': Icons.science_outlined,
-      'color': Color(0xFF9575CD),
-    },
-    'Salinity': {
-      'value': sensor.salinity.toStringAsFixed(1),
-      'unit': 'mg/L',
-      'icon': Icons.grain,
-      'color': Color(0xFF4DB6AC),
-    },
-    'ec': {
-      'value': sensor.ec.toStringAsFixed(2),
-      'unit': 'μS',
-      'icon': Icons.bolt_outlined,
-      'color': Color(0xFFFFD54F),
-    },
-  };
-}
+    return {
+      'Temperature': {
+        'value': sensor.temperature.toStringAsFixed(1),
+        'unit': '°C',
+        'icon': Icons.thermostat_outlined,
+        'color': Color(0xFFFF8A65),
+      },
+      'Moisture': {
+        'value': sensor.moisture.toStringAsFixed(1),
+        'unit': '%',
+        'icon': Icons.water_drop_outlined,
+        'color': Color(0xFF4FC3F7),
+      },
+      'pH': {
+        'value': sensor.ph.toStringAsFixed(1),
+        'unit': 'pH',
+        'icon': Icons.science_outlined,
+        'color': Color(0xFF9575CD),
+      },
+      'Salinity': {
+        'value': sensor.salinity.toStringAsFixed(1),
+        'unit': 'mg/L',
+        'icon': Icons.grain,
+        'color': Color(0xFF4DB6AC),
+      },
+      'ec': {
+        'value': sensor.ec.toStringAsFixed(2),
+        'unit': 'μS',
+        'icon': Icons.bolt_outlined,
+        'color': Color(0xFFFFD54F),
+      },
+    };
+  }
 
+  // Initialize TTS settings
+  @override
+  void initState() {
+    super.initState();
+    initTts();
+  }
+
+  // Clean up TTS resources
+  @override 
+  void dispose() {
+    flutterTts.stop();
+    super.dispose();
+  }
+
+  // Initialize Text-to-Speech settings
+  Future<void> initTts() async {
+    await flutterTts.setLanguage("en-US");
+    await flutterTts.setSpeechRate(0.5); // Slightly slower speech rate
+    await flutterTts.setVolume(1.0);
+    await flutterTts.setPitch(1.0);
+    
+    flutterTts.setCompletionHandler(() {
+      setState(() {
+        isSpeaking = false;
+      });
+    });
+  }
+
+  // Function to read out soil parameters
+  Future<void> speakSoilParameters() async {
+    if (isSpeaking) {
+      await flutterTts.stop();
+      setState(() {
+        isSpeaking = false;
+      });
+      return;
+    }
+
+    final sensor = Provider.of<SensorProvider>(context, listen: false);
+    final soilParams = getSoilParameters(sensor);
+    
+    String textToSpeak = "Current soil parameters: ";
+    
+    soilParams.forEach((key, value) {
+      textToSpeak += "$key is ${value['value']} ${value['unit']}. ";
+    });
+    
+    setState(() {
+      isSpeaking = true;
+    });
+    
+    await flutterTts.speak(textToSpeak);
+  }
 
   final List<Map<String, dynamic>> alerts = [
     {
@@ -152,13 +209,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   SizedBox(height: 24),
                   _buildSoilParametersSection(),
                   SizedBox(height: 24),
-                  //_buildMiniCharts(),
-                  SizedBox(height: 24),
                   _buildEmergencyAssistance(),
                   SizedBox(height: 24),
                   _buildAlertsSection(),
-                  SizedBox(height: 24),
-                  //_buildCropIssuesSection(),
                   SizedBox(height: 24),
                   _buildQuickActions(),
                   SizedBox(height: 40),
@@ -218,6 +271,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ],
             ),
+            // Add text-to-speech button here
+            GestureDetector(
+              onTap: speakSoilParameters,
+              child: Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Color(0xFF4CAF50).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  isSpeaking ? Icons.volume_up : Icons.volume_up_outlined,
+                  color: Color(0xFF4CAF50),
+                  size: 20,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -266,70 +335,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
- Widget _buildSoilParametersSection() {
-  // Accessing the SensorProvider to get the real-time sensor data
-  final sensor = Provider.of<SensorProvider>(context);
-  final soilParameters = getSoilParameters(sensor); // Get live parameters
+  Widget _buildSoilParametersSection() {
+    // Accessing the SensorProvider to get the real-time sensor data
+    final sensor = Provider.of<SensorProvider>(context);
+    final soilParameters = getSoilParameters(sensor); // Get live parameters
 
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            'Soil Parameters',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF2E3A59),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Soil Parameters',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF2E3A59),
+              ),
             ),
-          ),
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Color(0xFF4CAF50).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.refresh, size: 14, color: Color(0xFF4CAF50)),
-                SizedBox(width: 4),
-                Text(
-                  '',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF4CAF50),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      SizedBox(height: 16),
-      // Grid view to display the parameters dynamically
-      GridView.builder(
-        shrinkWrap: true,
-        physics: NeverScrollableScrollPhysics(),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 0.9,
+          ],
         ),
-        itemCount: soilParameters.length,
-        itemBuilder: (context, index) {
-          String key = soilParameters.keys.elementAt(index);
-          Map<String, dynamic> parameter = soilParameters[key];
-          return _buildParameterCard(key, parameter);
-        },
-      ),
-    ],
-  );
-}
-
+        SizedBox(height: 16),
+        // Grid view to display the parameters dynamically
+        GridView.builder(
+          shrinkWrap: true,
+          physics: NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 0.9,
+          ),
+          itemCount: soilParameters.length,
+          itemBuilder: (context, index) {
+            String key = soilParameters.keys.elementAt(index);
+            Map<String, dynamic> parameter = soilParameters[key];
+            return _buildParameterCard(key, parameter);
+          },
+        ),
+      ],
+    );
+  }
 
   Widget _buildParameterCard(String title, Map<String, dynamic> parameter) {
     return Container(
@@ -395,15 +442,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
- 
-
   Widget _buildEmergencyAssistance() {
     return GestureDetector(
-      onTap: () {
-        // Handle emergency call
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Connecting to agricultural expert...')),
-        );
+      onTap: () async {
+        // Phone number to call
+        final phoneNumber = '0558075707'; 
+        
+        try {
+          // Direct call without asking for confirmation
+          bool? result = await FlutterPhoneDirectCaller.callNumber(phoneNumber);
+          
+          if (result != true) {
+            // Show message if call fails
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Could not make a call. Please try again.')),
+            );
+          }
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error making call: ${e.toString()}')),
+          );
+        }
       },
       child: Container(
         padding: EdgeInsets.symmetric(vertical: 16, horizontal: 20),
@@ -615,76 +674,90 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  
+Widget _buildQuickActions() {
+  final List<Map<String, dynamic>> actions = [
+    {'title': 'Scan Lettuce', 'icon': Icons.camera_alt_outlined, 'color': Color.fromARGB(255, 25, 165, 230)},
+    {'title': 'LettuceAI', 'icon': Icons.chat, 'color': Color.fromARGB(255, 17, 165, 4)},
+  ];
 
-  Widget _buildQuickActions() {
-    final List<Map<String, dynamic>> actions = [
-      {'title': 'Scan Lettuce', 'icon': Icons.camera_alt_outlined, 'color': Color.fromARGB(255, 25, 165, 230)},
-      {'title': 'LettuceAI', 'icon': Icons.chat, 'color': Color.fromARGB(255, 17, 165, 4)},
-    ];
-
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            offset: Offset(0, 4),
-            blurRadius: 10,
+  return Container(
+    padding: EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.03),
+          offset: Offset(0, 4),
+          blurRadius: 10,
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Quick Actions',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF2E3A59),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Quick Actions',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF2E3A59),
-            ),
-          ),
-          SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: actions.map((action) {
-              return GestureDetector(
-                onTap: () {},
-                child: Column(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: action['color'].withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        action['icon'],
-                        color: action['color'],
-                        size: 24,
-                      ),
+        ),
+        SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: actions.asMap().entries.map((entry) {
+            final int index = entry.key;
+            final Map<String, dynamic> action = entry.value;
+            
+            return GestureDetector(
+              onTap: () {
+                // Navigate to different pages based on which action is tapped
+                if (index == 0) {
+                  // Navigate to QuickDetectionScreenState for "Scan Lettuce"
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (context) => QuickDetectionScreen()),
+                  );
+                } else if (index == 1) {
+                  // Navigate to ChatbotPage for "LettuceAI"
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (context) => ChatbotPage()),
+                  );
+                }
+              },
+              child: Column(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: action['color'].withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    SizedBox(height: 8), 
-                    Text(
-                      action['title'],
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF8F9BB3),
-                        fontWeight: FontWeight.w500,
-                      ),
+                    child: Icon(
+                      action['icon'],
+                      color: action['color'],
+                      size: 24,
                     ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
+                  ),
+                  SizedBox(height: 8), 
+                  Text(
+                    action['title'],
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF8F9BB3),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildBottomNavigation() {
     return Positioned(
@@ -717,8 +790,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-
-
 
   Widget _buildNavItem(int index, IconData icon, String label) {
     bool isSelected = _selectedIndex == index;
@@ -776,4 +847,3 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 }
-
