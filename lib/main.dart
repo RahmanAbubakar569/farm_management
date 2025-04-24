@@ -11,6 +11,206 @@ import 'package:agrosensor/sensor.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_tts/flutter_tts.dart'; 
 
+class SoilActionAlert extends StatelessWidget {
+  final String parameterName;
+  final String currentValue;
+  final String unit;
+  final String actionRequired;
+  final String actionDetails;
+  final IconData parameterIcon;
+  final Color accentColor;
+  final VoidCallback? onTakeAction;
+
+  const SoilActionAlert({
+    Key? key,
+    required this.parameterName,
+    required this.currentValue,
+    required this.unit,
+    required this.actionRequired,
+    required this.actionDetails,
+    required this.parameterIcon,
+    this.accentColor = const Color(0xFFFF5722),
+    this.onTakeAction,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: accentColor.withOpacity(0.15),
+            offset: Offset(0, 4),
+            blurRadius: 12,
+          ),
+        ],
+        border: Border.all(
+          color: accentColor.withOpacity(0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Alert header
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: accentColor.withOpacity(0.1),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(15),
+                topRight: Radius.circular(15),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: accentColor,
+                  size: 22,
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Action Required: $parameterName',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                      color: accentColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Alert content
+          Padding(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Parameter info row
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: accentColor.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        parameterIcon,
+                        color: accentColor,
+                        size: 22,
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          parameterName,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF2E3A59),
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Current: $currentValue $unit',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: accentColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                SizedBox(height: 16),
+                // Action text
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Action: ',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF2E3A59),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        actionRequired,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF2E3A59),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 10),
+                // Details text
+                Text(
+                  actionDetails,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF8F9BB3),
+                  ),
+                ),
+                SizedBox(height: 16),
+                // Action buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () {},
+                      child: Text(
+                        'Remind Later',
+                        style: TextStyle(
+                          color: Color(0xFF8F9BB3),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: onTakeAction,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: accentColor,
+                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: Text(
+                        'Take Action',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -64,6 +264,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String currentDate = DateFormat('E, d MMM').format(DateTime.now());
   FlutterTts flutterTts = FlutterTts(); // Initialize TTS engine
   bool isSpeaking = false; // Track speaking state
+  Set<String> dismissedAlerts = {};
 
   // Sample data for dashboard
   Map<String, dynamic> getSoilParameters(SensorProvider sensor) {
@@ -118,7 +319,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Initialize Text-to-Speech settings
   Future<void> initTts() async {
     await flutterTts.setLanguage("en-US");
-    await flutterTts.setSpeechRate(0.5); // Slightly slower speech rate
+    await flutterTts.setSpeechRate(1.0); // speed-rate
     await flutterTts.setVolume(1.0);
     await flutterTts.setPitch(1.0);
     
@@ -156,42 +357,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   final List<Map<String, dynamic>> alerts = [
-    {
-      'title': 'Low pH Level',
-      'description': 'pH dropped below optimal range',
-      'time': '15 min ago',
-      'priority': 'High',
-      'color': Color(0xFFEF5350),
-    },
-    {
-      'title': 'Irrigation Due',
-      'description': 'Soil moisture dropping',
-      'time': '1 hour ago',
-      'priority': 'Medium',
-      'color': Color(0xFFFFB74D),
-    },
+    // {
+    //   'title': 'Low pH Level',
+    //   'description': 'pH dropped below optimal range',
+    //   'time': '15 min ago',
+    //   'priority': 'High',
+    //   'color': Color(0xFFEF5350),
+    // },
+    // {
+    //   'title': 'Irrigation Due',
+    //   'description': 'Soil moisture dropping',
+    //   'time': '1 hour ago',
+    //   'priority': 'Medium',
+    //   'color': Color(0xFFFFB74D),
+    // },
   ];
 
-  final List<Map<String, dynamic>> crops = [
-    {
-      'id': 'A1',
-      'status': 'Healthy',
-      'statusColor': Color(0xFF66BB6A),
-      'image': 'assets/lettuce1.jpg',
-    },
-    {
-      'id': 'B2',
-      'status': 'Bacterial',
-      'statusColor': Color(0xFFEF5350),
-      'image': 'assets/lettuce2.jpg',
-    },
-    {
-      'id': 'C3',
-      'status': 'Fungal',
-      'statusColor': Color(0xFFFFB74D),
-      'image': 'assets/lettuce3.jpg',
-    },
-  ];
+  void dismissAlert(String alertId) {
+  setState(() {
+    dismissedAlerts.add(alertId);
+  });
+  // Show a confirmation message
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text('Alert dismissed successfully')),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -530,64 +720,145 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildAlertsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Active Alerts',
+
+
+
+Widget _buildAlertsSection() {
+  // Get the sensor data to check for issues
+  final sensor = Provider.of<SensorProvider>(context);
+  
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'Active Alerts',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF2E3A59),
+            ),
+          ),
+          TextButton(
+            onPressed: () {},
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: Size(0, 0),
+            ),
+            child: Text(
+              'View All',
               style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF2E3A59),
+                fontSize: 14,
+                color: Color(0xFF4CAF50),
               ),
             ),
-            TextButton(
-              onPressed: () {},
-              style: TextButton.styleFrom(
-                padding: EdgeInsets.zero,
-                minimumSize: Size(0, 0),
-              ),
-              child: Text(
-                'View All',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF4CAF50),
-                ),
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 12),
-        ListView.builder(
-          shrinkWrap: true,
-          physics: NeverScrollableScrollPhysics(),
-          itemCount: alerts.length,
-          itemBuilder: (context, index) {
-            final alert = alerts[index];
-            return Container(
-              margin: EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.03),
-                    offset: Offset(0, 4),
-                    blurRadius: 10,
-                  ),
-                ],
-              ),
-              child: _buildAlertItem(alert),
-            );
+          ),
+        ],
+      ),
+      SizedBox(height: 12),
+      
+      // Check for soil parameters needing action
+      if (_needsTemperatureAction(sensor) && !dismissedAlerts.contains('temperature'))
+        SoilActionAlert(
+          parameterName: 'Temperature',
+          currentValue: sensor.temperature.toStringAsFixed(1),
+          unit: '°C',
+          actionRequired: 'Increase soil temperature',
+          actionDetails: 'Your soil temperature is below optimal range (15-20°C). Use black plastic mulch or consider greenhouse growing to increase soil temperature.',
+          parameterIcon: Icons.thermostat_outlined,
+          accentColor: Color(0xFFFF8A65),
+          onTakeAction: () {
+            dismissAlert('temperature');
           },
         ),
-      ],
-    );
+        
+      if (_needsMoistureAction(sensor) && !dismissedAlerts.contains('moisture'))
+        SoilActionAlert(
+          parameterName: 'Moisture',
+          currentValue: sensor.moisture.toStringAsFixed(1),
+          unit: '%',
+          actionRequired: 'Water your plants immediately',
+          actionDetails: 'Soil moisture is below critical threshold (70%). Water your plants to prevent stress and nutrient uptake issues.',
+          parameterIcon: Icons.water_drop_outlined,
+          accentColor: Color(0xFF4FC3F7),
+          onTakeAction: () {
+            dismissAlert('moisture');
+          },
+        ),
+        
+      if (_needsPhAction(sensor) && !dismissedAlerts.contains('ph'))
+        SoilActionAlert(
+          parameterName: 'pH Level',
+          currentValue: sensor.ph.toStringAsFixed(1),
+          unit: '',
+          actionRequired: _getPhAction(sensor),
+          actionDetails: _getPhActionDetails(sensor),
+          parameterIcon: Icons.science_outlined,
+          accentColor: Color(0xFF9575CD),
+          onTakeAction: () {
+            dismissAlert('ph');
+          },
+        ),
+      
+      // Display regular alerts using your existing format
+      ListView.builder(
+        shrinkWrap: true,
+        physics: NeverScrollableScrollPhysics(),
+        itemCount: alerts.length,
+        itemBuilder: (context, index) {
+          final alert = alerts[index];
+          return Container(
+            margin: EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  offset: Offset(0, 4),
+                  blurRadius: 10,
+                ),
+              ],
+            ),
+            child: _buildAlertItem(alert),
+          );
+        },
+      ),
+    ],
+  );
+}
+
+bool _needsTemperatureAction(SensorProvider sensor) {
+  return sensor.temperature < 15.0 || sensor.temperature > 20.0;
+}
+
+bool _needsMoistureAction(SensorProvider sensor) {
+  return sensor.moisture < 70.0;
+}
+
+bool _needsPhAction(SensorProvider sensor) {
+  return sensor.ph < 6.0 || sensor.ph > 6.5;
+}
+
+String _getPhAction(SensorProvider sensor) {
+  if (sensor.ph < 6.0) {
+    return 'Increase soil pH';
+  } else if (sensor.ph > 6.5) {
+    return 'Decrease soil pH';
   }
+  return '';
+}
+
+String _getPhActionDetails(SensorProvider sensor) {
+  if (sensor.ph < 6.0) {
+    return 'Your soil is too acidic for optimal lettuce growth. Add agricultural lime or wood ash to raise pH. Retest after 2-3 weeks.';
+  } else if (sensor.ph > 6.5) {
+    return 'Your soil is too alkaline for optimal lettuce growth. Add sulfur, iron sulfate, or organic matter like pine needles to lower pH.';
+  }
+  return '';
+}
 
   Widget _buildAlertItem(Map<String, dynamic> alert) {
     return Container(
