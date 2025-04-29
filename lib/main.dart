@@ -3,13 +3,14 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart';
-import 'package:agrosensor/diseasedetection.dart';
-import 'package:agrosensor/soil.dart';
-import 'package:agrosensor/cropai.dart';
-import 'package:agrosensor/quickdetection.dart';
-import 'package:agrosensor/sensor.dart';
+import 'package:agrosensor/pages/diseasedetection.dart';
+import 'package:agrosensor/pages/soil.dart';
+import 'package:agrosensor/pages/cropai.dart';
+import 'package:agrosensor/pages/quickdetection.dart';
+import 'package:agrosensor/services/sensor.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_tts/flutter_tts.dart'; 
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class SoilActionAlert extends StatelessWidget {
   final String parameterName;
@@ -211,8 +212,10 @@ class SoilActionAlert extends StatelessWidget {
 
 
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await dotenv.load(fileName: ".env");
 
   SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,

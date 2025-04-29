@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ChatbotPage extends StatefulWidget {
   const ChatbotPage({Key? key}) : super(key: key);
@@ -14,30 +15,42 @@ class _ChatbotPageState extends State<ChatbotPage> {
   final ScrollController _scrollController = ScrollController();
   final List<ChatMessage> _messages = [];
   bool _isTyping = false;
-  late LettuceAssistant _lettuceAssistant;
+  late GeminiAssistant _geminiAssistant;
   bool _isAssistantReady = false;
 
   @override
   void initState() {
     super.initState();
-    _initLettuceAssistant();
+    _initGeminiAssistant();
   }
 
-  Future<void> _initLettuceAssistant() async {
+  Future<void> _initGeminiAssistant() async {
     try {
-      // Load the JSON data from assets
-      final String jsonData = await rootBundle.loadString('assets/lettuce_growth_data.json');
-      _lettuceAssistant = LettuceAssistant(jsonData);
+      // Initialize with API key from environment variables
+      final apiKey = dotenv.env['GEMINI_API_KEY'];
+      if (apiKey == null || apiKey.isEmpty) {
+        throw Exception('GEMINI_API_KEY not found in environment variables');
+      }
+      
+      _geminiAssistant = GeminiAssistant(apiKey);
       setState(() {
         _isAssistantReady = true;
+        // Add initial welcome message
+        _messages.add(
+          ChatMessage(
+            text: 'Hello! I\'m your Lettuce Farming Assistant powered by Gemini AI. How can I help you today?',
+            isUser: false,
+            timestamp: DateTime.now(),
+          ),
+        );
       });
     } catch (e) {
-      print('Error initializing Lettuce Assistant: $e');
+      print('Error initializing Gemini Assistant: $e');
       // Show error message in chat
       setState(() {
         _messages.add(
           ChatMessage(
-            text: 'Sorry, I had trouble loading my knowledge base. Please try again later.',
+            text: 'Sorry, I had trouble connecting to the AI service. Please check your API key and try again.',
             isUser: false,
             timestamp: DateTime.now(),
           ),
@@ -72,30 +85,54 @@ class _ChatbotPageState extends State<ChatbotPage> {
     // Scroll to bottom after adding message
     _scrollToBottom();
     
-    // Get response from Lettuce Assistant
-    Future.delayed(const Duration(milliseconds: 500), () {
-      String response = '';
-      
-      if (_isAssistantReady) {
-        response = _lettuceAssistant.generateResponse(text);
-      } else {
-        response = "I'm still loading my lettuce farming knowledge. Please try again in a moment.";
-      }
-      
-      setState(() {
-        _isTyping = false;
-        _messages.add(
-          ChatMessage(
-            text: response,
-            isUser: false,
-            timestamp: DateTime.now(),
-          ),
-        );
+    // Get response from Gemini Assistant
+    if (_isAssistantReady) {
+      _geminiAssistant.generateResponse(text).then((response) {
+        setState(() {
+          _isTyping = false;
+          _messages.add(
+            ChatMessage(
+              text: response,
+              isUser: false,
+              timestamp: DateTime.now(),
+            ),
+          );
+        });
+        
+        // Scroll to bottom after bot response
+        _scrollToBottom();
+      }).catchError((error) {
+        setState(() {
+          _isTyping = false;
+          _messages.add(
+            ChatMessage(
+              text: "Sorry, I encountered an error: ${error.toString()}. Please try again.",
+              isUser: false,
+              timestamp: DateTime.now(),
+            ),
+          );
+        });
+        
+        // Scroll to bottom after bot response
+        _scrollToBottom();
       });
-      
-      // Scroll to bottom after bot response
-      _scrollToBottom();
-    });
+    } else {
+      Future.delayed(const Duration(milliseconds: 500), () {
+        setState(() {
+          _isTyping = false;
+          _messages.add(
+            ChatMessage(
+              text: "I'm still initializing. Please try again in a moment.",
+              isUser: false,
+              timestamp: DateTime.now(),
+            ),
+          );
+        });
+        
+        // Scroll to bottom after bot response
+        _scrollToBottom();
+      });
+    }
   }
 
   void _scrollToBottom() {
@@ -444,299 +481,66 @@ class ChatMessage {
   });
 }
 
-// Ported from Python to Dart
-class LettuceAssistant {
-  late Map<String, dynamic> data;
-  late List<String> categories;
-  late List<String> vocabulary;
-
-  LettuceAssistant(String jsonString) {
+class GeminiAssistant {
+  final String apiKey;
+  final String baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+  
+  GeminiAssistant(this.apiKey);
+  
+  Future<String> generateResponse(String query) async {
     try {
-      // Parse the JSON data
-      data = json.decode(jsonString);
-      categories = data.keys.toList();
-      print("Lettuce Assistant initialized successfully!");
+      // Add context about lettuce farming to every query
+      String enhancedQuery = "As a lettuce farming expert, please respond to: $query\n\n"
+                            "Focus on providing accurate information about lettuce cultivation, including "
+                            "watering needs, soil requirements, temperature preferences, pest management, "
+                            "harvesting techniques, and other relevant aspects of lettuce farming.";
       
-      // Build vocabulary
-      vocabulary = _buildVocabulary();
-    } catch (e) {
-      print("Error initializing Lettuce Assistant: $e");
-      data = {};
-      categories = [];
-      vocabulary = [];
-    }
-  }
-  
-  List<String> _buildVocabulary() {
-    Set<String> vocabularySet = {};
-    
-    // Add common lettuce farming terms
-    List<String> commonTerms = [
-      "lettuce", "water", "irrigation", "soil", "fertilizer", "temperature", 
-      "climate", "moisture", "drought", "pH", "NPK", "compost", "organic",
-      "nutrient", "drip", "evapotranspiration", "mulch", "greenhouse",
-      "hydroponic", "frequency", "drainage", "wilting", "root", "disease",
-      "prevention", "strategy", "amendment", "sensor", "monitoring"
-    ];
-    vocabularySet.addAll(commonTerms);
-    
-    // Add terms from the data
-    for (String category in data.keys) {
-      vocabularySet.add(category.toLowerCase());
-      Map<String, dynamic> categoryData = data[category];
-      
-      for (String subcategory in categoryData.keys) {
-        vocabularySet.add(subcategory.toLowerCase());
-        Map<String, dynamic> subcategoryData = categoryData[subcategory];
-        
-        for (String section in subcategoryData.keys) {
-          vocabularySet.add(section.toLowerCase());
-          List<dynamic> sectionItems = subcategoryData[section];
-          
-          for (String item in sectionItems) {
-            // Add words from each item (excluding common words)
-            RegExp wordRegex = RegExp(r'\b[a-zA-Z]{4,}\b');
-            Iterable<RegExpMatch> matches = wordRegex.allMatches(item.toLowerCase());
-            for (RegExpMatch match in matches) {
-              vocabularySet.add(match.group(0)!);
-            }
+      // Prepare the request body
+      final Map<String, dynamic> requestBody = {
+        'contents': [
+          {
+            'parts': [
+              {'text': enhancedQuery}
+            ]
           }
-        }
-      }
-    }
-    
-    return vocabularySet.toList();
-  }
-  
-  String autocorrect(String text) {
-    // Simple autocorrection implementation
-    List<String> words = text.split(RegExp(r'\s+'));
-    List<String> correctedWords = [];
-    
-    for (String word in words) {
-      if (word.length <= 3 || RegExp(r'^\d+$').hasMatch(word)) {
-        correctedWords.add(word);
-        continue;
-      }
-      
-      String wordLower = word.toLowerCase();
-      if (vocabulary.contains(wordLower)) {
-        correctedWords.add(word);
-        continue;
-      }
-      
-      // Find closest match
-      String? closestMatch = _findClosestMatch(wordLower, vocabulary);
-      if (closestMatch != null) {
-        // Preserve original capitalization
-        if (word[0].toUpperCase() == word[0]) {
-          closestMatch = closestMatch[0].toUpperCase() + closestMatch.substring(1);
-        }
-        correctedWords.add(closestMatch);
-      } else {
-        correctedWords.add(word);
-      }
-    }
-    
-    return correctedWords.join(' ');
-  }
-  
-  String? _findClosestMatch(String word, List<String> candidates) {
-    int minDistance = 1000;
-    String? bestMatch;
-    
-    for (String candidate in candidates) {
-      int distance = _levenshteinDistance(word, candidate);
-      if (distance < minDistance && distance <= word.length ~/ 2) {
-        minDistance = distance;
-        bestMatch = candidate;
-      }
-    }
-    
-    return bestMatch;
-  }
-  
-  int _levenshteinDistance(String s, String t) {
-    // Initialize matrix of size (s.length+1) x (t.length+1)
-    List<List<int>> d = List.generate(
-      s.length + 1, (_) => List.filled(t.length + 1, 0)
-    );
-    
-    // Source prefixes can be transformed into empty string by dropping characters
-    for (int i = 0; i <= s.length; i++) {
-      d[i][0] = i;
-    }
-    
-    // Target prefixes can be reached from empty source by inserting characters
-    for (int j = 0; j <= t.length; j++) {
-      d[0][j] = j;
-    }
-    
-    for (int j = 1; j <= t.length; j++) {
-      for (int i = 1; i <= s.length; i++) {
-        int substitutionCost = (s[i-1] == t[j-1]) ? 0 : 1;
-        d[i][j] = [
-          d[i-1][j] + 1,                  // deletion
-          d[i][j-1] + 1,                  // insertion
-          d[i-1][j-1] + substitutionCost  // substitution
-        ].reduce((curr, next) => curr < next ? curr : next);
-      }
-    }
-    
-    return d[s.length][t.length];
-  }
-  
-  List<String> searchKeywords(String query) {
-    String queryLower = query.toLowerCase();
-    Set<String> relevantCategories = {};
-    
-    // Define keyword mappings
-    Map<String, String> keywordMap = {
-      "water": "Watering & Irrigation",
-      "irrigation": "Watering & Irrigation",
-      "moisture": "Watering & Irrigation",
-      "drip": "Watering & Irrigation",
-      "drought": "Watering & Irrigation",
-      "overwater": "Watering & Irrigation",
-      "evapotranspiration": "Watering & Irrigation",
-      
-      "soil": "Soil & Fertilization",
-      "fertiliz": "Soil & Fertilization",
-      "fertilis": "Soil & Fertilization",
-      "compost": "Soil & Fertilization",
-      "organic": "Soil & Fertilization",
-      "nutrient": "Soil & Fertilization",
-      "pH": "Soil & Fertilization",
-      "NPK": "Soil & Fertilization",
-      
-      "temperature": "Temperature & Climate",
-      "climate": "Temperature & Climate",
-      "heat": "Temperature & Climate",
-      "cool": "Temperature & Climate",
-      "celsius": "Temperature & Climate",
-      "fahrenheit": "Temperature & Climate",
-    };
-    
-    for (String keyword in keywordMap.keys) {
-      if (queryLower.contains(keyword)) {
-        relevantCategories.add(keywordMap[keyword]!);
-      }
-    }
-    
-    return relevantCategories.toList();
-  }
-  
-  String? findSubcategory(String category, String query) {
-    if (!data.containsKey(category)) {
-      return null;
-    }
-    
-    List<String> subcategories = data[category].keys.toList();
-    String queryLower = query.toLowerCase();
-    
-    for (String subcategory in subcategories) {
-      String subcategoryLower = subcategory.toLowerCase();
-      List<String> subcategoryWords = subcategoryLower.split(' ');
-      
-      for (String word in subcategoryWords) {
-        if (queryLower.contains(word) && word.length > 3) {
-          return subcategory;
-        }
-      }
-    }
-    
-    // If no direct match, return the first subcategory
-    return subcategories.isNotEmpty ? subcategories[0] : null;
-  }
-  
-  Map<String, dynamic>? getInformation(String category, String subcategory) {
-    if (data.containsKey(category) && data[category].containsKey(subcategory)) {
-      String sectionKey = data[category][subcategory].keys.first;
-      return {
-        "category": category,
-        "subcategory": subcategory,
-        "section_type": sectionKey,
-        "points": data[category][subcategory][sectionKey]
+        ]
       };
-    }
-    return null;
-  }
-  
-  String generateResponse(String query) {
-    // Apply autocorrection
-    String originalQuery = query;
-    String correctedQuery = autocorrect(query);
-    
-    // Special case for greetings
-    List<String> greetingPatterns = ["hello", "hi ", "hey", "greetings", "howdy"];
-    if (greetingPatterns.any((pattern) => correctedQuery.toLowerCase().contains(pattern))) {
-      return "Hello! I'm your Lettuce Farming Assistant. I can help you with:\n"
-             "- Watering & Irrigation\n"
-             "- Soil & Fertilization\n"
-             "- Temperature & Climate\n\n"
-             "What would you like to know about growing lettuce today?";
-    }
-    
-    // Special case for help
-    if (correctedQuery.toLowerCase().contains("help")) {
-      return "I can provide information about lettuce farming in these areas:\n\n"
-             "1. Watering & Irrigation - Including watering frequency, irrigation methods, "
-             "drought stress prevention, and evapotranspiration management.\n\n"
-             "2. Soil & Fertilization - Including soil pH management, fertilization practices, "
-             "compost usage, and soil nutrient monitoring.\n\n"
-             "3. Temperature & Climate - Including optimal temperature ranges for lettuce growth.\n\n"
-             "Ask me specific questions like 'How often should I water my lettuce?' or "
-             "'What is the best soil pH for lettuce?'";
-    }
-    
-    // Find relevant categories based on keywords
-    List<String> relevantCategories = searchKeywords(correctedQuery);
-    
-    // If no relevant categories found, provide a general response
-    if (relevantCategories.isEmpty) {
-      return "I'm not sure I understand your question about lettuce farming. "
-             "Could you rephrase your question related to watering, soil management, "
-             "or temperature control for lettuce? Or type 'help' to see what I can assist with.";
-    }
-    
-    List<String> responses = [];
-    String correctionNotice = "";
-    
-    // Add correction notice if query was changed
-    if (originalQuery.toLowerCase() != correctedQuery.toLowerCase()) {
-      correctionNotice = "I understood your question as: \"$correctedQuery\"\n\n";
-    }
-    
-    // Generate responses for each relevant category
-    for (String category in relevantCategories) {
-      String? subcategory = findSubcategory(category, correctedQuery);
-      
-      if (subcategory != null) {
-        Map<String, dynamic>? info = getInformation(category, subcategory);
+
+      // Make the API request
+      final response = await http.post(
+        Uri.parse('$baseUrl?key=$apiKey'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(requestBody),
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
         
-        if (info != null) {
-          String response = "📌 About ${info['subcategory']} (${info['category']}):\n\n";
+        // Extract the response text from the Gemini API response
+        if (data.containsKey('candidates') && 
+            data['candidates'].isNotEmpty && 
+            data['candidates'][0].containsKey('content') &&
+            data['candidates'][0]['content'].containsKey('parts') &&
+            data['candidates'][0]['content']['parts'].isNotEmpty) {
           
-          // Add points from the data
-          List<dynamic> points = info['points'];
-          for (int i = 0; i < points.length; i++) {
-            response += "${i + 1}. ${points[i]}\n";
-          }
-          
-          responses.add(response);
+          return data['candidates'][0]['content']['parts'][0]['text'];
+        } else {
+          return "I received a response but couldn't parse the content. Please try again.";
+        }
+      } else {
+        // Handle error based on status code
+        if (response.statusCode == 400) {
+          return "There was an issue with the request. Please try asking a different question.";
+        } else if (response.statusCode == 401) {
+          return "API authentication failed. Please check your API key.";
+        } else if (response.statusCode == 429) {
+          return "You've reached the rate limit. Please try again later.";
+        } else {
+          return "Error: HTTP ${response.statusCode}. Please try again later.";
         }
       }
-    }
-    
-    // Combine responses or return a fallback
-    if (responses.isNotEmpty) {
-      String finalResponse = correctionNotice + responses.join("\n\n");
-      finalResponse += "\n\nIs there anything specific about these recommendations you'd like me to explain further?";
-      return finalResponse;
-    } else {
-      return "I have information about lettuce farming, but I couldn't find specific details for your query. "
-             "Try asking about watering frequency, irrigation methods, soil pH, fertilization, "
-             "or optimal temperature ranges for lettuce.";
+    } catch (e) {
+      return "Sorry, I encountered an error while processing your request: ${e.toString()}";
     }
   }
 }

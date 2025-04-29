@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:agrosensor/quickdetection.dart';
+import 'package:agrosensor/pages/quickdetection.dart';
 import 'package:agrosensor/dronedetection.dart';
 
 class DiseaseDetectionScreen extends StatelessWidget {

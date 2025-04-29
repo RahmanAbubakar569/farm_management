@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:agrosensor/sensor.dart';
+import 'package:agrosensor/services/sensor.dart';
 import 'dart:math';
 class SimpleSoilAnalysisScreen extends StatefulWidget {
   const SimpleSoilAnalysisScreen({Key? key}) : super(key: key);
