@@ -170,16 +170,16 @@ class SoilActionAlert extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    TextButton(
-                      onPressed: () {},
-                      child: Text(
-                        'Remind Later',
-                        style: TextStyle(
-                          color: Color(0xFF8F9BB3),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
+                    // TextButton(
+                    //   onPressed: () {},
+                    //   child: Text(
+                    //     'Remind Later',
+                    //     style: TextStyle(
+                    //       color: Color(0xFF8F9BB3),
+                    //       fontWeight: FontWeight.w500,
+                    //     ),
+                    //   ),
+                    // ),
                     SizedBox(width: 8),
                     ElevatedButton(
                       onPressed: onTakeAction,
@@ -191,7 +191,7 @@ class SoilActionAlert extends StatelessWidget {
                         ),
                       ),
                       child: Text(
-                        'Take Action',
+                        'Action Taken',
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
@@ -319,7 +319,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Initialize Text-to-Speech settings
   Future<void> initTts() async {
     await flutterTts.setLanguage("en-US");
-    await flutterTts.setSpeechRate(1.0); // speed-rate
+    await flutterTts.setSpeechRate(0.5); // speed-rate
     await flutterTts.setVolume(1.0);
     await flutterTts.setPitch(1.0);
     
@@ -378,9 +378,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     dismissedAlerts.add(alertId);
   });
   // Show a confirmation message
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text('Alert dismissed successfully')),
-  );
+  // ScaffoldMessenger.of(context).showSnackBar(
+  //   SnackBar(content: Text('Alert dismissed successfully')),
+  // );
 }
 
   @override
@@ -741,20 +741,20 @@ Widget _buildAlertsSection() {
               color: Color(0xFF2E3A59),
             ),
           ),
-          TextButton(
-            onPressed: () {},
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              minimumSize: Size(0, 0),
-            ),
-            child: Text(
-              'View All',
-              style: TextStyle(
-                fontSize: 14,
-                color: Color(0xFF4CAF50),
-              ),
-            ),
-          ),
+          // TextButton(
+          //   onPressed: () {},
+          //   style: TextButton.styleFrom(
+          //     padding: EdgeInsets.zero,
+          //     minimumSize: Size(0, 0),
+          //   ),
+          //   // child: Text(
+          //   //   'View All',
+          //   //   style: TextStyle(
+          //   //     fontSize: 14,
+          //   //     color: Color(0xFF4CAF50),
+          //   //   ),
+          //   // ),
+          // ),
         ],
       ),
       SizedBox(height: 12),
@@ -853,7 +853,7 @@ String _getPhAction(SensorProvider sensor) {
 
 String _getPhActionDetails(SensorProvider sensor) {
   if (sensor.ph < 6.0) {
-    return 'Your soil is too acidic for optimal lettuce growth. Add agricultural lime or wood ash to raise pH. Retest after 2-3 weeks.';
+    return 'Your soil is too acidic for optimal lettuce growth. Add agricultural lime or wood ash mixed water to raise pH..';
   } else if (sensor.ph > 6.5) {
     return 'Your soil is too alkaline for optimal lettuce growth. Add sulfur, iron sulfate, or organic matter like pine needles to lower pH.';
   }
