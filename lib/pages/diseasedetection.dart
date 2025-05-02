@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:agrosensor/pages/quickdetection.dart';
-import 'package:agrosensor/dronedetection.dart';
+//import 'package:agrosensor/dronedetection.dart';
 
 class DiseaseDetectionScreen extends StatelessWidget {
   const DiseaseDetectionScreen({Key? key}) : super(key: key);
@@ -142,75 +142,75 @@ class DiseaseDetectionScreen extends StatelessWidget {
         ),
 
         // Drone Detection Card
-        GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => DroneDetectionScreen()),
-            );
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  offset: Offset(0, 4),
-                  blurRadius: 10,
-                ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Row(
-                children: [
-                  Container(
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Color(0xFF2196F3).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Icon(
-                      Icons.flight_outlined,
-                      color: Color(0xFF2196F3),
-                      size: 32,
-                    ),
-                  ),
-                  SizedBox(width: 20),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Drone Detection',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF2E3A59),
-                          ),
-                        ),
-                        SizedBox(height: 5),
-                        Text(
-                          'Analyze aerial imagery from drones to detect field-wide issues',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF8F9BB3),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    Icons.arrow_forward_ios,
-                    color: Color(0xFF8F9BB3),
-                    size: 18,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+        // GestureDetector(
+        //   onTap: () {
+        //     Navigator.push(
+        //       context,
+        //       MaterialPageRoute(builder: (context) => DroneDetectionScreen()),
+        //     );
+        //   },
+        //   child: Container(
+        //     decoration: BoxDecoration(
+        //       color: Colors.white,
+        //       borderRadius: BorderRadius.circular(16),
+        //       boxShadow: [
+        //         BoxShadow(
+        //           color: Colors.black.withOpacity(0.05),
+        //           offset: Offset(0, 4),
+        //           blurRadius: 10,
+        //         ),
+        //       ],
+        //     ),
+        //     child: Padding(
+        //       padding: const EdgeInsets.all(20.0),
+        //       child: Row(
+        //         children: [
+        //           Container(
+        //             padding: EdgeInsets.all(16),
+        //             decoration: BoxDecoration(
+        //               color: Color(0xFF2196F3).withOpacity(0.1),
+        //               borderRadius: BorderRadius.circular(16),
+        //             ),
+        //             child: Icon(
+        //               Icons.flight_outlined,
+        //               color: Color(0xFF2196F3),
+        //               size: 32,
+        //             ),
+        //           ),
+        //           SizedBox(width: 20),
+        //           Expanded(
+        //             child: Column(
+        //               crossAxisAlignment: CrossAxisAlignment.start,
+        //               children: [
+        //                 Text(
+        //                   'Drone Detection',
+        //                   style: TextStyle(
+        //                     fontSize: 18,
+        //                     fontWeight: FontWeight.w600,
+        //                     color: Color(0xFF2E3A59),
+        //                   ),
+        //                 ),
+        //                 SizedBox(height: 5),
+        //                 Text(
+        //                   'Analyze aerial imagery from drones to detect field-wide issues',
+        //                   style: TextStyle(
+        //                     fontSize: 14,
+        //                     color: Color(0xFF8F9BB3),
+        //                   ),
+        //                 ),
+        //               ],
+        //             ),
+        //           ),
+        //           Icon(
+        //             Icons.arrow_forward_ios,
+        //             color: Color(0xFF8F9BB3),
+        //             size: 18,
+        //           ),
+        //         ],
+        //       ),
+        //     ),
+        //   ),
+        // ),
       ],
     );
   }
