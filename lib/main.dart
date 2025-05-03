@@ -11,6 +11,7 @@ import 'package:agrosensor/services/sensor.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_tts/flutter_tts.dart'; 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SoilActionAlert extends StatelessWidget {
   final String parameterName;
@@ -210,12 +211,15 @@ class SoilActionAlert extends StatelessWidget {
   }
 }
 
-
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await dotenv.load(fileName: ".env");
+
+   await Supabase.initialize(
+    url: 'https://rpsnooqnkgajqegdzvbh.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwc25vb3Fua2dhanFlZ2R6dmJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYxOTExNTAsImV4cCI6MjA2MTc2NzE1MH0.zpSC3jDarWFhHrM7lQ2gTszA-vuA9xJJCLX9V1Wh424',
+  );
 
   SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,

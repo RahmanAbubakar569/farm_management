@@ -57,6 +57,7 @@ dev_dependencies:
   flutter_phone_direct_caller: ^2.2.1
   flutter_dotenv: ^5.2.1
   image: ^4.0.17
+  supabase_flutter: ^2.9.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
