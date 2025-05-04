@@ -1,18 +1,24 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SensorProvider with ChangeNotifier {
-  // List to store all sensor data records
-  List<Map<String, dynamic>> sensorRecords = [];
+  // Store only the latest sensor data record
+  Map<String, dynamic>? latestRecord;
   
-  // Soil parameter values for backward compatibility
+  // Soil parameter values
   double temperature = 0.0;
   double moisture = 0.0;
   double ph = 0.0;
   int ec = 0;
   int salinity = 0;
-  String lastUpdated = '';
+  String lastUpdated = 'Never';
+  
+  // Current table management
+  String _currentTableName = '';
+  String get currentTableName => _currentTableName;
+  bool get isConnected => _currentTableName.isNotEmpty;
   
   // Loading state
   bool isLoading = true;
@@ -24,20 +30,17 @@ class SensorProvider with ChangeNotifier {
   // Supabase configuration
   final String _supabaseUrl = 'https://rpsnooqnkgajqegdzvbh.supabase.co';
   final String _supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwc25vb3Fua2dhanFlZ2R6dmJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYxOTExNTAsImV4cCI6MjA2MTc2NzE1MH0.zpSC3jDarWFhHrM7lQ2gTszA-vuA9xJJCLX9V1Wh424';
-  static const String _tableName = 'farmsensor_data';
   
   // Refresh interval (default 5 seconds)
   Duration _refreshInterval = const Duration(seconds: 5);
-  
-  // Number of records to fetch (can be adjusted)
-  int _recordLimit = 50;
 
   // Constructor
   SensorProvider() {
+    WidgetsFlutterBinding.ensureInitialized();
     _initializeSupabase();
   }
   
-  // Initialize Supabase client and start data fetching
+  // Initialize Supabase client
   Future<void> _initializeSupabase() async {
     try {
       debugPrint('Initializing Supabase connection...');
@@ -45,31 +48,20 @@ class SensorProvider with ChangeNotifier {
       notifyListeners();
       
       try {
-        // Get existing Supabase client if available
         _supabaseClient = Supabase.instance.client;
         debugPrint('Using existing Supabase client');
       } catch (e) {
-        // Initialize Supabase if needed
         debugPrint('Initializing new Supabase client');
         await Supabase.initialize(
           url: _supabaseUrl,
           anonKey: _supabaseKey,
-          debug: true, // Enable debug mode to see more detailed logs
+          debug: true,
         );
         _supabaseClient = Supabase.instance.client;
       }
       
-      // Verify data access
-      await _testDatabaseAccess();
-      
-      // Initial data fetch
-      await _fetchAllSensorData();
-      
-      // Slight delay before starting the timer to ensure initial fetch completes
-      Future.delayed(Duration(milliseconds: 500), () {
-        startListening();
-      });
-      
+      isLoading = false;
+      notifyListeners();
     } catch (e, stackTrace) {
       debugPrint('Error in _initializeSupabase: $e');
       debugPrint(stackTrace.toString());
@@ -79,176 +71,206 @@ class SensorProvider with ChangeNotifier {
     }
   }
 
-  // Test database access to ensure table exists and is accessible
-  Future<void> _testDatabaseAccess() async {
+  // Connect to a specific table
+  Future<void> connectToTable(String tableName) async {
+    if (!_isValidTableName(tableName)) {
+      throw ArgumentError('Invalid table name. Only alphanumeric characters and underscores are allowed.');
+    }
+
     try {
-      final testQuery = await _supabaseClient
-          .from(_tableName)
-          .select('count')
-          .limit(1);
-      debugPrint('Successfully connected to $_tableName table');
+      isLoading = true;
+      errorMessage = '';
+      notifyListeners();
+      
+      // Disconnect from current table if connected
+      if (_currentTableName.isNotEmpty) {
+        stopListening();
+      }
+      
+      _currentTableName = tableName;
+      await _testDatabaseAccess();
+      await _fetchLatestSensorData();
+      
+      // Start listening only after successful connection
+      startListening();
+      
+      debugPrint('Successfully connected to table: $tableName');
     } catch (e) {
-      debugPrint('Error accessing $_tableName table: $e');
-      throw Exception('Cannot access $_tableName table. Please check if the table exists and has proper permissions.');
+      _currentTableName = '';
+      errorMessage = 'Failed to connect to table: ${e.toString()}';
+      debugPrint('Connection error: $errorMessage');
+      rethrow;
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  bool _isValidTableName(String name) {
+    return name.isNotEmpty && 
+           name.length <= 63 &&
+           RegExp(r'^[a-zA-Z_][a-zA-Z0-9_]*$').hasMatch(name);
+  }
+
+  Future<void> _testDatabaseAccess() async {
+    if (_currentTableName.isEmpty) {
+      throw StateError('No table name specified');
+    }
+    
+    try {
+      final response = await _supabaseClient
+          .from(_currentTableName)
+          .select()
+          .limit(1)
+          .timeout(const Duration(seconds: 10));
+          
+      if (response.isEmpty) {
+        debugPrint('Table $_currentTableName exists but is empty');
+      }
+    } 
+    // on SocketException catch (e) {
+    //   throw Exception('Network error: ${e.message}');
+    // } 
+    // on TimeoutException {
+    //   throw Exception('Connection timeout. Please check your internet connection.');
+    // } 
+    catch (e) {
+      debugPrint('Error accessing table $_currentTableName: $e');
+      throw Exception('Cannot access table $_currentTableName. Please verify the table exists and you have proper permissions.');
     }
   }
 
   // Start periodic data fetching
   void startListening({Duration? interval}) {
-    // If a new interval is provided, use it
+    stopListening(); // Cancel any existing timer
+    
+    if (_currentTableName.isEmpty) {
+      debugPrint('Cannot start listening - no table connected');
+      return;
+    }
+    
     if (interval != null) {
       _refreshInterval = interval;
     }
     
-    // Cancel any existing timer
-    _timer?.cancel();
+    // Fetch immediately first
+    _fetchLatestSensorData();
     
-    // Start a new timer with the specified interval
-    _timer = Timer.periodic(_refreshInterval, (timer) {
-      debugPrint('Timer triggered: fetching data (timer tick: ${timer.tick})');
-      _fetchAllSensorData();
+    // Then set up periodic fetching
+    _timer = Timer.periodic(_refreshInterval, (timer) async {
+      debugPrint('Fetching data...');
+      await _fetchLatestSensorData();
     });
-    debugPrint('Started sensor data polling with ${_refreshInterval.inSeconds}s interval');
+    
+    debugPrint('Started polling table $_currentTableName every ${_refreshInterval.inSeconds}s');
   }
 
   // Stop periodic data fetching
   void stopListening() {
     _timer?.cancel();
     _timer = null;
-    debugPrint('Stopped sensor data polling');
+    debugPrint('Stopped data polling');
   }
 
-  // Set a new refresh interval
-  void setRefreshInterval(Duration interval) {
-    _refreshInterval = interval;
+  // Fetch only the latest sensor data record
+  Future<void> _fetchLatestSensorData() async {
+    if (_currentTableName.isEmpty) return;
     
-    // If already listening, restart with new interval
-    if (_timer != null) {
-      stopListening();
-      startListening();
-    }
-  }
-  
-  // Set the number of records to fetch
-  void setRecordLimit(int limit) {
-    _recordLimit = limit;
-    _fetchAllSensorData(); // Refresh with new limit
-  }
-
-  // Fetch all sensor data up to the record limit
-  Future<void> _fetchAllSensorData() async {
     try {
-      debugPrint('Fetching sensor data records...');
-      // Only set isLoading to true on initial load, not on refresh
-      if (sensorRecords.isEmpty) {
-        isLoading = true;
-        notifyListeners();
-      }
+      isLoading = true;
+      notifyListeners();
+      
       errorMessage = '';
       
-      // Query multiple records, ordered by creation time (newest first)
       final response = await _supabaseClient
-          .from(_tableName)
+          .from(_currentTableName)
           .select()
           .order('created_at', ascending: false)
-          .limit(_recordLimit);
+          .limit(1)
+          .single()
+          .timeout(const Duration(seconds: 10));
       
-      if (response != null && response.isNotEmpty) {
-        // Clear existing records and add new ones to ensure fresh data
-        sensorRecords = [];
-        sensorRecords = List<Map<String, dynamic>>.from(response);
-        
-        // Process records for display
-        for (var record in sensorRecords) {
-          // Format temperature, moisture, pH as double values
-          record['temperature'] = _parseDoubleValue(record['temperature']);
-          record['moisture'] = _parseDoubleValue(record['moisture']);
-          record['ph'] = _parseDoubleValue(record['ph']);
-          
-          // Format EC and salinity as integers
-          record['ec'] = _parseIntValue(record['ec']);
-          record['salinity'] = _parseIntValue(record['salinity']);
-          
-          // Format timestamp
-          if (record['created_at'] != null) {
-            DateTime dateTime = DateTime.parse(record['created_at']);
-            record['formatted_time'] = dateTime.toLocal().toString();
-          }
-        }
-        
-        // Update the single-value properties for backward compatibility
-        if (sensorRecords.isNotEmpty) {
-          var latest = sensorRecords.first;
-          temperature = latest['temperature'] ?? 0.0;
-          moisture = latest['moisture'] ?? 0.0;
-          ph = latest['ph'] ?? 0.0;
-          ec = latest['ec'] ?? 0;
-          salinity = latest['salinity'] ?? 0;
-          
-          if (latest['created_at'] != null) {
-            DateTime dateTime = DateTime.parse(latest['created_at']);
-            lastUpdated = dateTime.toLocal().toString();
-          }
-        }
-        
-        debugPrint('Retrieved ${sensorRecords.length} sensor records');
-        debugPrint('Latest values - Temperature: $temperature, Moisture: $moisture, pH: $ph, EC: $ec, Salinity: $salinity');
-        
-        isLoading = false;
-        notifyListeners();
+      latestRecord = Map<String, dynamic>.from(response);
+      debugPrint('Fetched data: $latestRecord');
+      
+      // Process values - handle both string and numeric values
+      temperature = _parseDoubleValue(latestRecord!['temperature']);
+      moisture = _parseDoubleValue(latestRecord!['moisture']);
+      ph = _parseDoubleValue(latestRecord!['ph']);
+      ec = _parseIntValue(latestRecord!['ec']);
+      salinity = _parseIntValue(latestRecord!['salinity']);
+      
+      // Format the timestamp for display
+      if (latestRecord!['created_at'] != null) {
+        final dateTime = DateTime.parse(latestRecord!['created_at']).toLocal();
+        lastUpdated = '${_twoDigits(dateTime.hour)}:${_twoDigits(dateTime.minute)} '
+                     '${_twoDigits(dateTime.day)}/${_twoDigits(dateTime.month)}/${dateTime.year}';
       } else {
-        debugPrint('No sensor data found in database');
-        sensorRecords = [];
-        errorMessage = 'No sensor data available';
-        isLoading = false;
-        notifyListeners();
+        lastUpdated = 'Unknown';
       }
+      
+      debugPrint('Updated values: '
+                'temp=$temperature°C, '
+                'moisture=$moisture%, '
+                'ph=$ph, '
+                'ec=$ec μS, '
+                'salinity=$salinity mg/L');
+      
+      isLoading = false;
+      notifyListeners();
+    } on SocketException catch (e) 
+    {
+      //errorMessage = 'Network error: ${e.message}';
+      isLoading = false;
+      notifyListeners();
+    } 
+    on TimeoutException {
+      //errorMessage = 'Request timed out. Please check your internet connection.';
+      isLoading = false;
+      notifyListeners();
     } catch (e, stackTrace) {
-      debugPrint('Error fetching sensor data: $e');
+      debugPrint('Error fetching from $_currentTableName: $e');
       debugPrint(stackTrace.toString());
-      errorMessage = 'Failed to fetch sensor data: $e';
+      errorMessage = 'Failed to fetch data: ${e.toString()}';
       isLoading = false;
       notifyListeners();
     }
   }
   
-  // Manual refresh - can be called from UI
+  // Helper to format two-digit numbers
+  String _twoDigits(int n) => n.toString().padLeft(2, '0');
+
+  // Manual refresh
   Future<void> refreshData() async {
-    debugPrint('Manual refresh requested');
-    await _fetchAllSensorData();
+    if (_currentTableName.isEmpty) return;
+    await _fetchLatestSensorData();
   }
 
-  // Helper method to safely parse double values
+  // Helper methods for value parsing
   double _parseDoubleValue(dynamic value) {
     if (value == null) return 0.0;
-    
-    try {
-      if (value is int) return value.toDouble();
-      if (value is double) return value;
-      if (value is String) return double.tryParse(value) ?? 0.0;
-      return 0.0;
-    } catch (e) {
-      debugPrint('Error parsing double value: $e');
-      return 0.0;
+    if (value is int) return value.toDouble();
+    if (value is double) return value;
+    if (value is String) {
+      // Remove any non-numeric characters except decimal point
+      final cleaned = value.replaceAll(RegExp(r'[^0-9.]'), '');
+      return double.tryParse(cleaned) ?? 0.0;
     }
+    return 0.0;
   }
   
-  // Helper method to safely parse integer values
   int _parseIntValue(dynamic value) {
     if (value == null) return 0;
-    
-    try {
-      if (value is int) return value;
-      if (value is double) return value.round();
-      if (value is String) return int.tryParse(value) ?? 0;
-      return 0;
-    } catch (e) {
-      debugPrint('Error parsing int value: $e');
-      return 0;
+    if (value is int) return value;
+    if (value is double) return value.round();
+    if (value is String) {
+      // Remove any non-numeric characters
+      final cleaned = value.replaceAll(RegExp(r'[^0-9]'), '');
+      return int.tryParse(cleaned) ?? 0;
     }
+    return 0;
   }
   
-  // Clean up resources when provider is disposed
   @override
   void dispose() {
     stopListening();
