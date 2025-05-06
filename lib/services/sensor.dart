@@ -2,12 +2,13 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class SensorProvider with ChangeNotifier {
-  // Store only the latest sensor data record
+  // Sensor data storage
   Map<String, dynamic>? latestRecord;
-  
-  // Soil parameter values
   double temperature = 0.0;
   double moisture = 0.0;
   double ph = 0.0;
@@ -15,43 +16,42 @@ class SensorProvider with ChangeNotifier {
   int salinity = 0;
   String lastUpdated = 'Never';
   
-  // Current table management
+  // Table connection management
   String _currentTableName = '';
   String get currentTableName => _currentTableName;
   bool get isConnected => _currentTableName.isNotEmpty;
   
-  // Loading state
+  // Status tracking
   bool isLoading = true;
   String errorMessage = '';
-
   Timer? _timer;
   late final SupabaseClient _supabaseClient;
   
-  // Supabase configuration
-  final String _supabaseUrl = 'https://rpsnooqnkgajqegdzvbh.supabase.co';
-  final String _supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwc25vb3Fua2dhanFlZ2R6dmJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYxOTExNTAsImV4cCI6MjA2MTc2NzE1MH0.zpSC3jDarWFhHrM7lQ2gTszA-vuA9xJJCLX9V1Wh424';
+  // Configuration from .env
+  final String _supabaseUrl = dotenv.env['SUPABASE_URL']!;
+  final String _supabaseKey = dotenv.env['SUPABASE_ANON_KEY']!;
+  final String _smsApiKey = dotenv.env['SMS_API_KEY'] ?? '';
+  final String _smsRecipient = dotenv.env['SMS_RECIPIENT'] ?? '';
+  final String _smsSenderId = dotenv.env['SMS_SENDER_ID'] ?? '';
   
-  // Refresh interval (default 5 seconds)
+  // Operational parameters
   Duration _refreshInterval = const Duration(seconds: 5);
+  DateTime? _lastNotificationTime;
+  final List<Map<String, dynamic>> recommendations = [];
 
-  // Constructor
   SensorProvider() {
     WidgetsFlutterBinding.ensureInitialized();
     _initializeSupabase();
   }
-  
-  // Initialize Supabase client
+
   Future<void> _initializeSupabase() async {
     try {
-      debugPrint('Initializing Supabase connection...');
       isLoading = true;
       notifyListeners();
       
       try {
         _supabaseClient = Supabase.instance.client;
-        debugPrint('Using existing Supabase client');
       } catch (e) {
-        debugPrint('Initializing new Supabase client');
         await Supabase.initialize(
           url: _supabaseUrl,
           anonKey: _supabaseKey,
@@ -63,18 +63,16 @@ class SensorProvider with ChangeNotifier {
       isLoading = false;
       notifyListeners();
     } catch (e, stackTrace) {
-      debugPrint('Error in _initializeSupabase: $e');
-      debugPrint(stackTrace.toString());
       errorMessage = 'Failed to initialize connection: $e';
       isLoading = false;
       notifyListeners();
+      debugPrint('Initialization error: $e\n$stackTrace');
     }
   }
 
-  // Connect to a specific table
   Future<void> connectToTable(String tableName) async {
     if (!_isValidTableName(tableName)) {
-      throw ArgumentError('Invalid table name. Only alphanumeric characters and underscores are allowed.');
+      throw ArgumentError('Invalid table name format');
     }
 
     try {
@@ -82,23 +80,15 @@ class SensorProvider with ChangeNotifier {
       errorMessage = '';
       notifyListeners();
       
-      // Disconnect from current table if connected
-      if (_currentTableName.isNotEmpty) {
-        stopListening();
-      }
+      if (_currentTableName.isNotEmpty) stopListening();
       
       _currentTableName = tableName;
       await _testDatabaseAccess();
       await _fetchLatestSensorData();
-      
-      // Start listening only after successful connection
       startListening();
-      
-      debugPrint('Successfully connected to table: $tableName');
     } catch (e) {
       _currentTableName = '';
-      errorMessage = 'Failed to connect to table: ${e.toString()}';
-      debugPrint('Connection error: $errorMessage');
+      errorMessage = 'Connection failed: ${e.toString()}';
       rethrow;
     } finally {
       isLoading = false;
@@ -107,80 +97,41 @@ class SensorProvider with ChangeNotifier {
   }
 
   bool _isValidTableName(String name) {
-    return name.isNotEmpty && 
-           name.length <= 63 &&
-           RegExp(r'^[a-zA-Z_][a-zA-Z0-9_]*$').hasMatch(name);
+    return RegExp(r'^[a-zA-Z_][a-zA-Z0-9_]{0,62}$').hasMatch(name);
   }
 
   Future<void> _testDatabaseAccess() async {
-    if (_currentTableName.isEmpty) {
-      throw StateError('No table name specified');
-    }
-    
     try {
-      final response = await _supabaseClient
+      await _supabaseClient
           .from(_currentTableName)
           .select()
           .limit(1)
           .timeout(const Duration(seconds: 10));
-          
-      if (response.isEmpty) {
-        debugPrint('Table $_currentTableName exists but is empty');
-      }
-    } 
-    // on SocketException catch (e) {
-    //   throw Exception('Network error: ${e.message}');
-    // } 
-    // on TimeoutException {
-    //   throw Exception('Connection timeout. Please check your internet connection.');
-    // } 
-    catch (e) {
-      debugPrint('Error accessing table $_currentTableName: $e');
-      throw Exception('Cannot access table $_currentTableName. Please verify the table exists and you have proper permissions.');
+    } catch (e) {
+      throw Exception('Table access failed: $e');
     }
   }
 
-  // Start periodic data fetching
   void startListening({Duration? interval}) {
-    stopListening(); // Cancel any existing timer
+    stopListening();
+    if (_currentTableName.isEmpty) return;
     
-    if (_currentTableName.isEmpty) {
-      debugPrint('Cannot start listening - no table connected');
-      return;
-    }
-    
-    if (interval != null) {
-      _refreshInterval = interval;
-    }
-    
-    // Fetch immediately first
+    _refreshInterval = interval ?? _refreshInterval;
     _fetchLatestSensorData();
-    
-    // Then set up periodic fetching
-    _timer = Timer.periodic(_refreshInterval, (timer) async {
-      debugPrint('Fetching data...');
-      await _fetchLatestSensorData();
-    });
-    
-    debugPrint('Started polling table $_currentTableName every ${_refreshInterval.inSeconds}s');
+    _timer = Timer.periodic(_refreshInterval, (_) => _fetchLatestSensorData());
   }
 
-  // Stop periodic data fetching
   void stopListening() {
     _timer?.cancel();
     _timer = null;
-    debugPrint('Stopped data polling');
   }
 
-  // Fetch only the latest sensor data record
   Future<void> _fetchLatestSensorData() async {
     if (_currentTableName.isEmpty) return;
     
     try {
       isLoading = true;
       notifyListeners();
-      
-      errorMessage = '';
       
       final response = await _supabaseClient
           .from(_currentTableName)
@@ -190,87 +141,111 @@ class SensorProvider with ChangeNotifier {
           .single()
           .timeout(const Duration(seconds: 10));
       
-      latestRecord = Map<String, dynamic>.from(response);
-      debugPrint('Fetched data: $latestRecord');
+      _processSensorData(response);
+      _checkEcLevel();
       
-      // Process values - handle both string and numeric values
-      temperature = _parseDoubleValue(latestRecord!['temperature']);
-      moisture = _parseDoubleValue(latestRecord!['moisture']);
-      ph = _parseDoubleValue(latestRecord!['ph']);
-      ec = _parseIntValue(latestRecord!['ec']);
-      salinity = _parseIntValue(latestRecord!['salinity']);
-      
-      // Format the timestamp for display
-      if (latestRecord!['created_at'] != null) {
-        final dateTime = DateTime.parse(latestRecord!['created_at']).toLocal();
-        lastUpdated = '${_twoDigits(dateTime.hour)}:${_twoDigits(dateTime.minute)} '
-                     '${_twoDigits(dateTime.day)}/${_twoDigits(dateTime.month)}/${dateTime.year}';
-      } else {
-        lastUpdated = 'Unknown';
-      }
-      
-      debugPrint('Updated values: '
-                'temp=$temperature°C, '
-                'moisture=$moisture%, '
-                'ph=$ph, '
-                'ec=$ec μS, '
-                'salinity=$salinity mg/L');
-      
-      isLoading = false;
-      notifyListeners();
-    } on SocketException catch (e) 
-    {
-      //errorMessage = 'Network error: ${e.message}';
-      isLoading = false;
-      notifyListeners();
-    } 
-    on TimeoutException {
-      //errorMessage = 'Request timed out. Please check your internet connection.';
-      isLoading = false;
-      notifyListeners();
+    } on SocketException catch (e) {
+      errorMessage = 'Network error: ${e.message}';
+    } on TimeoutException {
+      errorMessage = 'Request timed out';
     } catch (e, stackTrace) {
-      debugPrint('Error fetching from $_currentTableName: $e');
-      debugPrint(stackTrace.toString());
-      errorMessage = 'Failed to fetch data: ${e.toString()}';
+      errorMessage = 'Data fetch failed';
+      debugPrint('Fetch error: $e\n$stackTrace');
+    } finally {
       isLoading = false;
       notifyListeners();
     }
   }
-  
-  // Helper to format two-digit numbers
-  String _twoDigits(int n) => n.toString().padLeft(2, '0');
 
-  // Manual refresh
+  void _processSensorData(Map<String, dynamic> data) {
+    latestRecord = Map<String, dynamic>.from(data);
+    temperature = _parseDoubleValue(data['temperature']);
+    moisture = _parseDoubleValue(data['moisture']);
+    ph = _parseDoubleValue(data['ph']);
+    ec = _parseIntValue(data['ec']);
+    salinity = _parseIntValue(data['salinity']);
+    
+    if (data['created_at'] != null) {
+      final localTime = DateTime.parse(data['created_at']).toLocal();
+      lastUpdated = '${_twoDigits(localTime.hour)}:${_twoDigits(localTime.minute)} '
+                   '${_twoDigits(localTime.day)}/${_twoDigits(localTime.month)}/${localTime.year}';
+    }
+  }
+
+  void _checkEcLevel() {
+    recommendations.clear();
+    
+    if (ec < 500) {
+      recommendations.add({
+        'title': 'Low Nutrients',
+        'description': 'EC level is too low. Apply fertilizer.',
+        'icon': Icons.bolt_outlined,
+        'color': Colors.amber,
+      });
+      _sendLowEcNotification();
+    }
+
+  }
+
+  // this function is to send the sms 
+  Future<void> _sendLowEcNotification() async {
+    final now = DateTime.now();
+    if (_lastNotificationTime != null && 
+        now.difference(_lastNotificationTime!) < const Duration(hours: 1)) {
+      return;
+    }
+
+    if (_smsApiKey.isEmpty || _smsRecipient.isEmpty) return;
+
+    try {
+      final response = await http.get(
+        Uri.https(
+          'sms.nalosolutions.com',
+          '/smsbackend/clientapi/Resl_Nalo/send-message/',
+          {
+            'key': _smsApiKey,
+            'type': '0',
+            'destination': _smsRecipient,
+            'dlr': '1',
+            'source': _smsSenderId,
+            'message': 'ALERT: Low soil EC ($ec μS/cm). Fertilize when possible.',
+          },
+        ),
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        _lastNotificationTime = now;
+        debugPrint('SMS sent successfully');
+      }
+    } catch (e) {
+      debugPrint('SMS send error: $e');
+    }
+  }
+
   Future<void> refreshData() async {
-    if (_currentTableName.isEmpty) return;
-    await _fetchLatestSensorData();
+    if (_currentTableName.isNotEmpty) {
+      await _fetchLatestSensorData();
+    }
   }
 
-  // Helper methods for value parsing
-  double _parseDoubleValue(dynamic value) {
-    if (value == null) return 0.0;
-    if (value is int) return value.toDouble();
-    if (value is double) return value;
-    if (value is String) {
-      // Remove any non-numeric characters except decimal point
-      final cleaned = value.replaceAll(RegExp(r'[^0-9.]'), '');
-      return double.tryParse(cleaned) ?? 0.0;
-    }
-    return 0.0;
-  }
+String _twoDigits(int n) => n.toString().padLeft(2, '0');
+
+double _parseDoubleValue(dynamic value) {
+  if (value == null) return 0.0;
+  if (value is num) return value.toDouble();
   
-  int _parseIntValue(dynamic value) {
-    if (value == null) return 0;
-    if (value is int) return value;
-    if (value is double) return value.round();
-    if (value is String) {
-      // Remove any non-numeric characters
-      final cleaned = value.replaceAll(RegExp(r'[^0-9]'), '');
-      return int.tryParse(cleaned) ?? 0;
-    }
-    return 0;
-  }
+  final cleaned = value.toString().replaceAll(RegExp(r'[^0-9.]'), '');
+  return double.tryParse(cleaned) ?? 0.0;
+}
+
+int _parseIntValue(dynamic value) {
+  if (value == null) return 0;
+  if (value is num) return value.toInt();
   
+  final cleaned = value.toString().replaceAll(RegExp(r'[^0-9]'), '');
+  return int.tryParse(cleaned) ?? 0;
+}
+
   @override
   void dispose() {
     stopListening();

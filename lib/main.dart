@@ -216,9 +216,16 @@ Future<void> main() async {
 
   await dotenv.load(fileName: ".env");
 
-   await Supabase.initialize(
-    url: 'https://rpsnooqnkgajqegdzvbh.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwc25vb3Fua2dhanFlZ2R6dmJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYxOTExNTAsImV4cCI6MjA2MTc2NzE1MH0.zpSC3jDarWFhHrM7lQ2gTszA-vuA9xJJCLX9V1Wh424',
+  final supabaseUrl = dotenv.env['SUPABASE_URL'];
+  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+
+  if (supabaseUrl == null || supabaseAnonKey == null) {
+    throw Exception('SUPABASE_URL or SUPABASE_ANON_KEY not found in .env');
+  }
+
+  await Supabase.initialize(
+    url: supabaseUrl,
+    anonKey: supabaseAnonKey,
   );
 
   SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
@@ -643,7 +650,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return GestureDetector(
       onTap: () async {
         // Phone number to call
-        final phoneNumber = '0558075707'; 
+        final phoneNumber = '0549034478'; 
         
         try {
           // Direct call without asking for confirmation
