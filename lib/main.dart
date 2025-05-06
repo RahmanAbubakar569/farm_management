@@ -1,3 +1,4 @@
+//imported all the packages needed
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -13,6 +14,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+// class for the txt to speech
 class SoilActionAlert extends StatelessWidget {
   final String parameterName;
   final String currentValue;
@@ -219,6 +221,7 @@ Future<void> main() async {
   final supabaseUrl = dotenv.env['SUPABASE_URL'];
   final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
 
+// throw exception if supabase URL and key not found
   if (supabaseUrl == null || supabaseAnonKey == null) {
     throw Exception('SUPABASE_URL or SUPABASE_ANON_KEY not found in .env');
   }
@@ -371,30 +374,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   final List<Map<String, dynamic>> alerts = [
-    // {
-    //   'title': 'Low pH Level',
-    //   'description': 'pH dropped below optimal range',
-    //   'time': '15 min ago',
-    //   'priority': 'High',
-    //   'color': Color(0xFFEF5350),
-    // },
-    // {
-    //   'title': 'Irrigation Due',
-    //   'description': 'Soil moisture dropping',
-    //   'time': '1 hour ago',
-    //   'priority': 'Medium',
-    //   'color': Color(0xFFFFB74D),
-    // },
+
   ];
 
   void dismissAlert(String alertId) {
   setState(() {
     dismissedAlerts.add(alertId);
   });
-  // Show a confirmation message
-  // ScaffoldMessenger.of(context).showSnackBar(
-  //   SnackBar(content: Text('Alert dismissed successfully')),
-  // );
+
 }
 
   @override
@@ -475,7 +462,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ],
             ),
-            // Add text-to-speech button here
+            // text-to-speech button here
             GestureDetector(
               onTap: speakSoilParameters,
               child: Container(
@@ -539,10 +526,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+//dashboard (gridview)
   Widget _buildSoilParametersSection() {
     // Accessing the SensorProvider to get the real-time sensor data
     final sensor = Provider.of<SensorProvider>(context);
-    final soilParameters = getSoilParameters(sensor); // Get live parameters
+    final soilParameters = getSoilParameters(sensor); // Getting live parameters
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

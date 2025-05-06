@@ -1,3 +1,4 @@
+// imported needed packages
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:agrosensor/services/sensor.dart';
@@ -12,16 +13,18 @@ class SimpleSoilAnalysisScreen extends StatefulWidget {
 class _SimpleSoilAnalysisScreenState extends State<SimpleSoilAnalysisScreen> {
   bool showDetails = false;
   final TextEditingController _codeController = TextEditingController();
-  String _currentTableCode = '';
-  bool _isCodeValid = false;
-  bool _isConnecting = false;
+  String _currentTableCode = ''; // sensorID to be enter by the user
+  bool _isCodeValid = false; // check to see if it is valid
+  bool _isConnecting = false; // connection status
 
   @override
   void dispose() {
     _codeController.dispose();
     super.dispose();
   }
+  
 
+  //function to validate the Sensor ID 
   Future<void> _validateCode() async {
     final tableCode = _codeController.text.trim();
     if (tableCode.isEmpty || tableCode.length < 4) {
@@ -57,7 +60,8 @@ class _SimpleSoilAnalysisScreenState extends State<SimpleSoilAnalysisScreen> {
       });
     }
   }
-
+  
+  //snackbar for notifications
   void _showSnackBar(String message, bool isSuccess) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -72,7 +76,7 @@ class _SimpleSoilAnalysisScreenState extends State<SimpleSoilAnalysisScreen> {
   Widget build(BuildContext context) {
     final sensor = Provider.of<SensorProvider>(context);
     
-    // Debug prints to monitor state changes
+    // Debug prints to monitor state changes 
     debugPrint('Building with sensor data:');
     debugPrint('  Connected: ${sensor.isConnected}');
     debugPrint('  Table: ${sensor.currentTableName}');
